@@ -2,9 +2,11 @@ pipeline {
     agent any
 
     environment {
+        DOCKER_REGISTRY_URL = '' // Use 'https://index.docker.io/v1/' for Docker Hub if needed
         DOCKER_IMAGE = "shivangkataria/my-app"
         DOCKER_TAG = "1.0-${BUILD_NUMBER}"
         IMAGE = "${DOCKER_IMAGE}:${DOCKER_TAG}"
+        EC2_HOST = "ubuntu@ec2-100-26-46-100.compute-1.amazonaws.com" // Replace with your EC2 instance address
     }
 
     stages {
@@ -19,7 +21,7 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 script {
-                    docker.withRegistry('', 'shivangkataria') {
+                    docker.withRegistry(DOCKER_REGISTRY_URL, 'shivangkataria') {
                         docker.image(IMAGE).push()
                     }
                 }
@@ -30,11 +32,16 @@ pipeline {
             steps {
                 script {
                     withCredentials([sshUserPrivateKey(credentialsId: 'rndem', keyFileVariable: 'SSH_KEY')]) {
-                        // Commands to pull and run the Docker image on the EC2 instance
-                        sh "ssh -i $SSH_KEY -o StrictHostKeyChecking=no ubuntu@ec2-100-26-46-100.compute-1.amazonaws.com 'docker pull $IMAGE && docker run -d -p 8000:8000 $IMAGE'"
+                        sh "ssh -i $SSH_KEY -o StrictHostKeyChecking=no ${EC2_HOST} 'docker pull $IMAGE && docker run -d -p 8000:8000 $IMAGE'"
                     }
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            cleanWs() // Clean up workspace after build completion
         }
     }
 }
